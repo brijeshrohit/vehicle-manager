@@ -9,15 +9,12 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Auth endpoints:
- * - /api/auth/register
- * - /api/auth/login
- * - /api/auth/refresh
- * - (optional) /api/auth/logout
+ * Auth REST endpoints
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -25,9 +22,7 @@ public class AuthController {
 
     private final AuthService authService;
 
-    public AuthController(AuthService authService) {
-        this.authService = authService;
-    }
+    public AuthController(AuthService authService) { this.authService = authService; }
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -47,15 +42,11 @@ public class AuthController {
         return ResponseEntity.ok(resp);
     }
 
-    // Optional logout - requires Authorization or userId from token
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout(@RequestHeader(value = "Authorization", required = false) String authHeader) {
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            // JwtUtil is not injected here to keep controller thin - you could parse user id and call logout
-            // For now, return OK and front-end should delete tokens locally too.
-            return ResponseEntity.ok(Map.of("status", "ok"));
-        }
-        return ResponseEntity.badRequest().body(Map.of("status", "no-token"));
+    public ResponseEntity<Map<String,String>> logout(Principal principal) {
+        if (principal == null) return ResponseEntity.badRequest().body(Map.of("status","no-token"));
+        UUID userId = UUID.fromString(principal.getName());
+        authService.logout(userId);
+        return ResponseEntity.ok(Map.of("status","User successfully logged out"));
     }
 }
