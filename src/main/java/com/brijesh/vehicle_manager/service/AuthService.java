@@ -1,7 +1,7 @@
 package com.brijesh.vehicle_manager.service;
 
-import com.brijesh.vehicle_manager.dto.AuthResponse;
 import com.brijesh.vehicle_manager.dto.AuthRequest;
+import com.brijesh.vehicle_manager.dto.AuthResponse;
 import com.brijesh.vehicle_manager.dto.RegisterRequest;
 import com.brijesh.vehicle_manager.entity.RefreshToken;
 import com.brijesh.vehicle_manager.entity.User;
@@ -17,12 +17,9 @@ import java.util.UUID;
 
 /**
  * Authentication service:
- * - register: create user, hash password, issue tokens and persist refresh token
- * - login: validate password, issue tokens, persist refresh token
- * - refresh: validate refresh token (exists in DB and not expired) -> rotate and issue new tokens
- *
- * The refresh tokens are rotated: on successful refresh we create a new refresh token record and delete (or replace) the old one,
- * preventing reuse of stolen tokens after rotation.
+ * - register: create user -> issue tokens and persist refresh token
+ * - login: validate password -> issue tokens and persist refresh token (rotating)
+ * - refresh: validate provided refresh token exists and not expired -> rotate (delete old, store new) and issue new access token
  */
 @Service
 public class AuthService {
@@ -44,12 +41,11 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest req) {
-        // Validate uniqueness
+        // ensure unique email
         userRepo.findByEmail(req.getEmail().toLowerCase()).ifPresent(u -> {
-            throw new RuntimeException("Email already registered");
+            throw new IllegalStateException("Email already registered");
         });
 
-        // create user
         User u = new User();
         u.setId(UUID.randomUUID());
         u.setEmail(req.getEmail().toLowerCase());
@@ -57,68 +53,67 @@ public class AuthService {
         u.setDisplayName(req.getDisplayName());
         userRepo.save(u);
 
-        // create tokens
         String access = jwtUtil.generateAccessToken(u.getId());
-        String refreshToken = jwtUtil.generateRefreshToken(u.getId());
+        String refresh = jwtUtil.generateRefreshToken(u.getId());
 
-        // Persist refresh token server-side with expiry
+        // Persist refresh token for rotation/revocation
         RefreshToken rt = new RefreshToken();
-        rt.setToken(refreshToken);
+        rt.setToken(refresh);
         rt.setUserId(u.getId());
-        rt.setExpiresAt(jwtUtil.getExpiration(refreshToken));
-        refreshRepo.deleteByUserId(u.getId()); // in case previous tokens exist
+        rt.setExpiresAt(jwtUtil.getExpiration(refresh));
+        refreshRepo.deleteByUserId(u.getId()); // clean existing
         refreshRepo.save(rt);
 
-        return new AuthResponse(access, refreshToken, Long.valueOf( (long) (jwtUtil.getExpiration(access).getEpochSecond() - Instant.now().getEpochSecond()) ));
+        long expiresIn = jwtUtil.getExpiration(access).getEpochSecond() - Instant.now().getEpochSecond();
+        return new AuthResponse(access, refresh, expiresIn);
     }
 
     @Transactional
     public AuthResponse login(AuthRequest req) {
-        User u = userRepo.findByEmail(req.getEmail().toLowerCase()).orElseThrow(() -> new RuntimeException("Invalid credentials"));
+        User u = userRepo.findByEmail(req.getEmail().toLowerCase()).orElseThrow(() -> new IllegalStateException("Invalid credentials"));
         if (!passwordEncoder.matches(req.getPassword(), u.getPasswordHash())) {
-            throw new RuntimeException("Invalid credentials");
+            throw new IllegalStateException("Invalid credentials");
         }
-        String access = jwtUtil.generateAccessToken(u.getId());
-        String refreshToken = jwtUtil.generateRefreshToken(u.getId());
 
-        // rotate: delete old and save new
+        String access = jwtUtil.generateAccessToken(u.getId());
+        String refresh = jwtUtil.generateRefreshToken(u.getId());
+
+        // rotate refresh token: delete old and save new
         refreshRepo.deleteByUserId(u.getId());
         RefreshToken rt = new RefreshToken();
-        rt.setToken(refreshToken);
+        rt.setToken(refresh);
         rt.setUserId(u.getId());
-        rt.setExpiresAt(jwtUtil.getExpiration(refreshToken));
+        rt.setExpiresAt(jwtUtil.getExpiration(refresh));
         refreshRepo.save(rt);
 
-        return new AuthResponse(access, refreshToken, Long.valueOf( (long) (jwtUtil.getExpiration(access).getEpochSecond() - Instant.now().getEpochSecond()) ));
+        long expiresIn = jwtUtil.getExpiration(access).getEpochSecond() - Instant.now().getEpochSecond();
+        return new AuthResponse(access, refresh, expiresIn);
     }
 
     @Transactional
     public AuthResponse refresh(String oldRefreshToken) {
-        RefreshToken stored = refreshRepo.findByToken(oldRefreshToken).orElseThrow(() -> new RuntimeException("Invalid refresh token"));
+        RefreshToken stored = refreshRepo.findByToken(oldRefreshToken).orElseThrow(() -> new IllegalStateException("Invalid refresh token"));
         if (stored.getExpiresAt().isBefore(Instant.now())) {
             refreshRepo.delete(stored);
-            throw new RuntimeException("Refresh token expired");
+            throw new IllegalStateException("Refresh token expired");
         }
 
         UUID userId = stored.getUserId();
-        // rotate refresh token: delete old and issue new
+        // rotate
         refreshRepo.delete(stored);
 
-        String newRefreshToken = jwtUtil.generateRefreshToken(userId);
-        RefreshToken newRt = new RefreshToken();
-        newRt.setToken(newRefreshToken);
-        newRt.setUserId(userId);
-        newRt.setExpiresAt(jwtUtil.getExpiration(newRefreshToken));
-        refreshRepo.save(newRt);
+        String newRefresh = jwtUtil.generateRefreshToken(userId);
+        RefreshToken rt = new RefreshToken();
+        rt.setToken(newRefresh);
+        rt.setUserId(userId);
+        rt.setExpiresAt(jwtUtil.getExpiration(newRefresh));
+        refreshRepo.save(rt);
 
         String access = jwtUtil.generateAccessToken(userId);
-
-        return new AuthResponse(access, newRefreshToken, Long.valueOf( (long) (jwtUtil.getExpiration(access).getEpochSecond() - Instant.now().getEpochSecond()) ));
+        long expiresIn = jwtUtil.getExpiration(access).getEpochSecond() - Instant.now().getEpochSecond();
+        return new AuthResponse(access, newRefresh, expiresIn);
     }
 
-    /**
-     * Logout: remove refresh tokens for the user (optional endpoint).
-     */
     @Transactional
     public void logout(UUID userId) {
         refreshRepo.deleteByUserId(userId);

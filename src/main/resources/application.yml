@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: vehicle-manager
+  datasource:
+    url: jdbc:mysql://localhost:3306/vehicle_manager?createDatabaseIfNotExist=true&serverTimezone=UTC
+    username: root
+    password: root
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+app:
+  jwt:
+    # Use a dev secret for now; later store in environment variable in production
+    secret: my-super-secret-dev-key-1234567890!!
+    access-validity-sec: 3600        # 1 hour
+    refresh-validity-sec: 1209600    # 14 days
