@@ -3,7 +3,7 @@ package com.brijesh.vehicle_manager.controller;
 import com.brijesh.vehicle_manager.dto.VehicleCreateRequest;
 import com.brijesh.vehicle_manager.dto.VehicleResponse;
 import com.brijesh.vehicle_manager.dto.VehicleUpdateRequest;
-import com.brijesh.vehicle_manager.service.VehicleService;
+import com.brijesh.vehicle_manager.service.impl.VehicleServiceImpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +16,6 @@ import java.util.UUID;
 
 /**
  * REST endpoints for vehicles.
- *
  * Authentication: we set the Authentication principal as the String userId in SecurityConfig filter.
  * So we parse principal.getName() -> UUID.
  */
@@ -25,7 +24,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class VehicleController {
 
-    private final VehicleService vehicleService;
+    private final VehicleServiceImpl vehicleService;
 
     private UUID getCurrentUserId(Authentication auth) {
         if (auth == null || auth.getName() == null) throw new RuntimeException("Unauthenticated");
