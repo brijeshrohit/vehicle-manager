@@ -25,6 +25,9 @@ import java.util.UUID;
  * - All other endpoints require valid JWT access token in Authorization header
  * - Stateless session (JWT)
  */
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 @Configuration
 public class SecurityConfig {
 
@@ -36,9 +39,12 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // Public API endpoints
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/login",
@@ -46,11 +52,16 @@ public class SecurityConfig {
                                 "/api/auth/logout",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html").permitAll()
+                                "/swagger-ui.html"
+                        ).permitAll()
+
+                        // Everything else needs JWT
                         .anyRequest().authenticated()
                 );
 
-        http.addFilterBefore(jwtFilter(), org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);
+        // JWT must run BEFORE UsernamePasswordAuthenticationFilter
+        http.addFilterBefore(jwtFilter(), UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
@@ -58,14 +69,27 @@ public class SecurityConfig {
     public OncePerRequestFilter jwtFilter() {
         return new OncePerRequestFilter() {
             @Override
-            protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+            protected void doFilterInternal(HttpServletRequest request,
+                                            HttpServletResponse response,
+                                            FilterChain filterChain)
+                    throws ServletException, IOException {
+
                 String header = request.getHeader("Authorization");
+
                 if (header != null && header.startsWith("Bearer ")) {
                     String token = header.substring(7);
+
                     try {
                         UUID userId = jwtUtil.parseTokenSubject(token);
-                        var auth = new UsernamePasswordAuthenticationToken(userId.toString(), null, null);
-                        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+
+                        var auth = new UsernamePasswordAuthenticationToken(
+                                userId.toString(),
+                                null,
+                                null
+                        );
+
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+
                     } catch (JwtException ex) {
                         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                         response.setContentType("application/json");
@@ -73,6 +97,7 @@ public class SecurityConfig {
                         return;
                     }
                 }
+
                 filterChain.doFilter(request, response);
             }
         };

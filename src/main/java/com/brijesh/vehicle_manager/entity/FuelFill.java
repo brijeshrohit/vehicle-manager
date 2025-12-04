@@ -2,40 +2,65 @@ package com.brijesh.vehicle_manager.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 
+/**
+ * Fuel fill record. All monetary/volume fields use BigDecimal for precision.
+ */
 @Entity
 @Table(name = "fuel_fills")
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class FuelFill {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "vehicle_id", nullable = false)
-    private Vehicle vehicle;
+    // Owner of the vehicle (user id)
+    @Column(nullable = false)
+    private UUID userId;
+
+    // Vehicle id (we don't map to Vehicle entity object; we use ownerId check separately)
+    @Column(nullable = false)
+    private UUID vehicleId;
 
     @Column(nullable = false)
-    private LocalDate date;
+    private LocalDate fillDate;
+
+    // Odometer reading captured at fill time (km)
+    @Column(nullable = false)
+    private Long odometerReading;
+
+    // Volume in liters (nullable if system estimates)
+    @Column(precision = 12, scale = 3)
+    private BigDecimal fuelVolume;
+
+    // Price per liter (nullable if system estimates)
+    @Column(precision = 12, scale = 2)
+    private BigDecimal pricePerLiter;
+
+    // Always computed server-side = fuelVolume * pricePerLiter
+    @Column(nullable = false, precision = 14, scale = 2)
+    private BigDecimal totalAmount;
+
+    // Mileage calculated for this fill (km per litre), nullable if cannot compute
+    @Column(precision = 8, scale = 3)
+    private BigDecimal mileage;
+
+    // true if one or more fields were estimated
+    @Column(nullable = false)
+    private boolean estimated;
+
+    private String notes;
 
     @Column(nullable = false)
-    private Double liters;
+    private Instant createdAt = Instant.now();
 
-    @Column(nullable = false)
-    private Double pricePerLiter;
-
-    @Column(nullable = false)
-    private Double totalCost;
-
-    @Column(nullable = false)
-    private Double odometerReading;
-
-    @Column
-    private Boolean fullTank; // TRUE = full tank or FALSE = partial fill
+    private Instant updatedAt;
 }

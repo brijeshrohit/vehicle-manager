@@ -1,15 +1,17 @@
 package com.brijesh.vehicle_manager.service;
 
-import com.brijesh.vehicle_manager.dto.CreateFuelFillRequest;
+import com.brijesh.vehicle_manager.dto.FuelFillCreateRequest;
 import com.brijesh.vehicle_manager.dto.FuelFillResponse;
+import com.brijesh.vehicle_manager.dto.VehicleFuelStatsResponse;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface FuelFillService {
 
-    FuelFillResponse addFuelFill(CreateFuelFillRequest request);
+    FuelFillResponse createFuelFill(UUID userId, FuelFillCreateRequest req);
 
-    List<FuelFillResponse> getFuelHistory(String vehicleId);
+    List<FuelFillResponse> getFillsForVehicle(UUID userId, UUID vehicleId);
 
-    void deleteFuelFill(String fillId);
+    VehicleFuelStatsResponse computeVehicleStats(UUID userId, UUID vehicleId);
 }
