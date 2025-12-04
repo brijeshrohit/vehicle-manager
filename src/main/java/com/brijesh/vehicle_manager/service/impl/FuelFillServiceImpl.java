@@ -51,8 +51,8 @@ public class FuelFillServiceImpl implements FuelFillService {
         List<FuelFill> history = fuelFillRepository.findByVehicleIdOrderByFillDateAsc(req.getVehicleId());
 
         // compute default values / estimations
-        BigDecimal fuelVolume = req.getFuelVolume();
-        BigDecimal pricePerLiter = req.getPricePerLiter();
+        BigDecimal fuelVolume = BigDecimal.valueOf(req.getLiters());
+        BigDecimal pricePerLiter = BigDecimal.valueOf(req.getPricePerLiter());
         boolean estimated = false;
 
         // estimate fuelVolume if null (distance since last known fill / rolling avg mileage)
@@ -65,7 +65,7 @@ public class FuelFillServiceImpl implements FuelFillService {
             if (prevOpt.isPresent()) {
                 FuelFill last = prevOpt.get();
                 if (last.getOdometerReading() != null) {
-                    long distance = req.getOdometerReading() - last.getOdometerReading();
+                    long distance = req.getOdometer() - last.getOdometerReading();
                     BigDecimal rollingMileage = MileageUtil.rollingAvgMileage(history, ROLLING_WINDOW);
 
                     if (rollingMileage != null && rollingMileage.compareTo(BigDecimal.ZERO) > 0) {
@@ -101,7 +101,7 @@ public class FuelFillServiceImpl implements FuelFillService {
         if (prevOpt.isPresent()) {
             FuelFill last = prevOpt.get();
             if (last.getOdometerReading() != null && fuelVolume.compareTo(BigDecimal.ZERO) > 0) {
-                long distance = req.getOdometerReading() - last.getOdometerReading();
+                long distance = req.getOdometer() - last.getOdometerReading();
                 if (distance > 0) {
                     mileage = MileageUtil.computeMileage(distance, fuelVolume);
                 }
@@ -113,13 +113,12 @@ public class FuelFillServiceImpl implements FuelFillService {
                 .userId(userId)
                 .vehicleId(req.getVehicleId())
                 .fillDate(req.getFillDate())
-                .odometerReading(req.getOdometerReading())
+                .odometerReading(req.getOdometer())
                 .fuelVolume(fuelVolume)
                 .pricePerLiter(pricePerLiter)
                 .totalAmount(totalAmount)
                 .mileage(mileage)
                 .estimated(estimated)
-                .notes(req.getNotes())
                 .createdAt(Instant.now())
                 .build();
 

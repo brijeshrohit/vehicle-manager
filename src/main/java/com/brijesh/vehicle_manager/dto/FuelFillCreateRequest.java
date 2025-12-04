@@ -1,32 +1,34 @@
 package com.brijesh.vehicle_manager.dto;
 
-import lombok.*;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 import jakarta.validation.constraints.NotNull;
+import lombok.Data;
 
 /**
  * Client may omit fuelVolume or pricePerLiter to request server estimation.
  */
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Data
 public class FuelFillCreateRequest {
+
     @NotNull
     private UUID vehicleId;
+
     @NotNull
     private LocalDate fillDate;
+
     @NotNull
-    private Long odometerReading;
+    private Long odometer;
 
-    // optional — server will estimate if null and history allows it
-    private BigDecimal fuelVolume;
-    private BigDecimal pricePerLiter;
+    @NotNull
+    private Double liters;
 
-    private String notes;
+    @NotNull
+    private Double pricePerLiter;
+
+    private Boolean fullTank;
+
+    private Boolean estimated;
 }
 
 
