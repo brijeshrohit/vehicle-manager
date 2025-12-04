@@ -108,6 +108,16 @@ public class FuelFillServiceImpl implements FuelFillService {
             }
         }
 
+        // --- Update Vehicle current odometer ---
+        if (vehicle.getCurrentOdometer() == null ||
+                req.getOdometer() > vehicle.getCurrentOdometer()) {
+
+            vehicle.setCurrentOdometer(req.getOdometer());
+            vehicle.setUpdatedAt(Instant.now());
+            vehicleRepository.save(vehicle);
+        }
+
+
         FuelFill f = FuelFill.builder()
                 .id(UUID.randomUUID())
                 .userId(userId)
